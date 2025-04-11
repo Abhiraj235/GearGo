@@ -16,7 +16,7 @@ const Header = async ({ isAdminPage = false }) => {
         <Link href={isAdminPage ? "/admin" : "/"} className="flex">
           <Image
             src={"/logo.png"}
-            alt="Vehiql Logo"
+            alt="GearGoLogo"
             width={200}
             height={60}
             className="h-12 w-auto object-contain"
