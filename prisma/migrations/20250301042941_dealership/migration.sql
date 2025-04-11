@@ -16,7 +16,7 @@ DROP COLUMN "logoUrl",
 DROP COLUMN "postalCode",
 DROP COLUMN "state",
 DROP COLUMN "website",
-ALTER COLUMN "name" SET DEFAULT 'Vehiql Motors',
+ALTER COLUMN "name" SET DEFAULT 'GearGoMotors',
 ALTER COLUMN "address" SET DEFAULT '69 Car Street, Autoville, CA 69420',
 ALTER COLUMN "phone" SET DEFAULT '+1 (555) 123-4567',
-ALTER COLUMN "email" SET DEFAULT 'contact@vehiql.com';
+ALTER COLUMN "email" SET DEFAULT 'contact@GearGo.com';
