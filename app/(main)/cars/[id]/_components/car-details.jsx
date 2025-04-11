@@ -81,7 +81,7 @@ export function CarDetails({ car, testDriveInfo }) {
       navigator
         .share({
           title: `${car.year} ${car.make} ${car.model}`,
-          text: `Check out this ${car.year} ${car.make} ${car.model} on Vehiql!`,
+          text: `Check out this ${car.year} ${car.make} ${car.model} on GearGo!`,
           url: window.location.href,
         })
         .catch((error) => {
@@ -251,7 +251,7 @@ export function CarDetails({ car, testDriveInfo }) {
                 Our representatives are available to answer all your queries
                 about this vehicle.
               </p>
-              <a href="mailto:help@vehiql.in">
+              <a href="mailto:help@GearGo.in">
                 <Button variant="outline" className="w-full">
                   Request Info
                 </Button>
