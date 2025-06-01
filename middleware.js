@@ -23,7 +23,6 @@ const aj = arcjet({
   ],
 });
 
-// Create base Clerk middleware
 const clerk = clerkMiddleware(async (auth, req) => {
   const { userId } = await auth();
 
@@ -34,8 +33,6 @@ const clerk = clerkMiddleware(async (auth, req) => {
 
   return NextResponse.next();
 });
-
-// Chain middlewares - ArcJet runs first, then Clerk
 export default createMiddleware(aj, clerk);
 
 export const config = {
