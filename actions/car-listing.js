@@ -115,8 +115,6 @@ export async function getCars({
     if (fuelType) where.fuelType = { equals: fuelType, mode: "insensitive" };
     if (transmission)
       where.transmission = { equals: transmission, mode: "insensitive" };
-
-    // Add price range
     where.price = {
       gte: parseFloat(minPrice) || 0,
     };
