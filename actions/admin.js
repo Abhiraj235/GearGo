@@ -115,9 +115,6 @@ export async function getAdminTestDrives({ search = "", status = "" }) {
   }
 }
 
-/**
- * Update test drive status
- */
 export async function updateTestDriveStatus(bookingId, newStatus) {
   try {
     const { userId } = await auth();
@@ -140,8 +137,6 @@ export async function updateTestDriveStatus(bookingId, newStatus) {
     if (!booking) {
       throw new Error("Booking not found");
     }
-
-    // Validate status
     const validStatuses = [
       "PENDING",
       "CONFIRMED",
