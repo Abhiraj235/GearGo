@@ -41,8 +41,6 @@ export async function getCarFilters() {
       distinct: ["transmission"],
       orderBy: { transmission: "asc" },
     });
-
-    // Get min and max prices using Prisma aggregations
     const priceAggregations = await db.car.aggregate({
       where: { status: "AVAILABLE" },
       _min: { price: true },
@@ -71,9 +69,6 @@ export async function getCarFilters() {
   }
 }
 
-/**
- * Get cars with simplified filters
- */
 export async function getCars({
   search = "",
   make = "",
@@ -81,7 +76,7 @@ export async function getCars({
   fuelType = "",
   transmission = "",
   minPrice = 0,
-  maxPrice = Number.MAX_SAFE_INTEGER,
+  maxPrice = Number.MAX_VALUE,
   sortBy = "newest", // Options: newest, priceAsc, priceDesc
   page = 1,
   limit = 6,
