@@ -5,20 +5,28 @@ import { db } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
-export async function getAdmin() {
+// Helper: get admin user
+async function getDbAdmin() {
   const { userId } = await auth();
-  if (!userId) throw new Error("Unauthorized");
+  if (!userId) return null;
 
-  const user = await db.user.findUnique({
-    where: { clerkUserId: userId },
-  });
+  const user = await db.user.findUnique({ where: { clerkUserId: userId } });
+  if (!user || user.role !== "ADMIN") return null;
 
-  // If user not found in our db or not an admin, return not authorized
-  if (!user || user.role !== "ADMIN") {
-    return { authorized: false, reason: "not-admin" };
+  return user;
+}
+
+export async function getAdmin() {
+  try {
+    const admin = await getDbAdmin();
+    if (!admin) {
+      return { success: true, data: { authorized: false, reason: "not-admin" }, error: null };
+    }
+
+    return { success: true, data: { authorized: true, user: admin }, error: null };
+  } catch (error) {
+    return { success: false, data: null, error: "Failed to check admin" };
   }
-
-  return { authorized: true, user };
 }
 
 /**
@@ -26,27 +34,12 @@ export async function getAdmin() {
  */
 export async function getAdminTestDrives({ search = "", status = "" }) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const admin = await getDbAdmin();
+    if (!admin) return { success: false, data: null, error: "Unauthorized" };
 
-    // Verify admin status
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user || user.role !== "ADMIN") {
-      throw new Error("Unauthorized access");
-    }
-
-    // Build where conditions
     let where = {};
+    if (status) where.status = status;
 
-    // Add status filter
-    if (status) {
-      where.status = status;
-    }
-
-    // Add search filter
     if (search) {
       where.OR = [
         {
@@ -68,7 +61,6 @@ export async function getAdminTestDrives({ search = "", status = "" }) {
       ];
     }
 
-    // Get bookings
     const bookings = await db.testDriveBooking.findMany({
       where,
       include: {
@@ -86,198 +78,111 @@ export async function getAdminTestDrives({ search = "", status = "" }) {
       orderBy: [{ bookingDate: "desc" }, { startTime: "asc" }],
     });
 
-    // Format the bookings
-    const formattedBookings = bookings.map((booking) => ({
-      id: booking.id,
-      carId: booking.carId,
-      car: serializeCarData(booking.car),
-      userId: booking.userId,
-      user: booking.user,
-      bookingDate: booking.bookingDate.toISOString(),
-      startTime: booking.startTime,
-      endTime: booking.endTime,
-      status: booking.status,
-      notes: booking.notes,
-      createdAt: booking.createdAt.toISOString(),
-      updatedAt: booking.updatedAt.toISOString(),
+    const formatted = bookings.map((b) => ({
+      id: b.id,
+      carId: b.carId,
+      car: serializeCarData(b.car),
+      userId: b.userId,
+      user: b.user,
+      bookingDate: b.bookingDate.toISOString(),
+      startTime: b.startTime,
+      endTime: b.endTime,
+      status: b.status,
+      notes: b.notes,
+      createdAt: b.createdAt.toISOString(),
+      updatedAt: b.updatedAt.toISOString(),
     }));
 
-    return {
-      success: true,
-      data: formattedBookings,
-    };
+    return { success: true, data: formatted, error: null };
   } catch (error) {
-    console.error("Error fetching test drives:", error);
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, data: null, error: "Failed to fetch test drives" };
   }
 }
 
+/**
+ * Update test drive status
+ */
 export async function updateTestDriveStatus(bookingId, newStatus) {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const admin = await getDbAdmin();
+    if (!admin) return { success: false, data: null, error: "Unauthorized" };
 
-    // Verify admin status
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
+    const booking = await db.testDriveBooking.findUnique({ where: { id: bookingId } });
+    if (!booking) return { success: false, data: null, error: "Booking not found" };
 
-    if (!user || user.role !== "ADMIN") {
-      throw new Error("Unauthorized access");
-    }
-
-    // Get the booking
-    const booking = await db.testDriveBooking.findUnique({
-      where: { id: bookingId },
-    });
-
-    if (!booking) {
-      throw new Error("Booking not found");
-    }
-    const validStatuses = [
-      "PENDING",
-      "CONFIRMED",
-      "COMPLETED",
-      "CANCELLED",
-      "NO_SHOW",
-    ];
+    const validStatuses = ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED", "NO_SHOW"];
     if (!validStatuses.includes(newStatus)) {
-      return {
-        success: false,
-        error: "Invalid status",
-      };
+      return { success: false, data: null, error: "Invalid status" };
     }
 
-    // Update status
     await db.testDriveBooking.update({
       where: { id: bookingId },
       data: { status: newStatus },
     });
 
-    // Revalidate paths
     revalidatePath("/admin/test-drives");
     revalidatePath("/reservations");
 
-    return {
-      success: true,
-      message: "Test drive status updated successfully",
-    };
+    return { success: true, data: { message: "Status updated" }, error: null };
   } catch (error) {
-    throw new Error("Error updating test drive status:" + error.message);
+    return { success: false, data: null, error: "Failed to update test drive status" };
   }
 }
 
+/**
+ * Get dashboard statistics
+ */
 export async function getDashboardData() {
   try {
-    const { userId } = await auth();
-    if (!userId) throw new Error("Unauthorized");
+    const admin = await getDbAdmin();
+    if (!admin) return { success: false, data: null, error: "Unauthorized" };
 
-    // Get user
-    const user = await db.user.findUnique({
-      where: { clerkUserId: userId },
-    });
-
-    if (!user || user.role !== "ADMIN") {
-      return {
-        success: false,
-        error: "Unauthorized",
-      };
-    }
-
-    // Fetch all necessary data in a single parallel operation
     const [cars, testDrives] = await Promise.all([
-      // Get all cars with minimal fields
       db.car.findMany({
-        select: {
-          id: true,
-          status: true,
-          featured: true,
-        },
+        select: { id: true, status: true, featured: true },
       }),
-
-      // Get all test drives with minimal fields
       db.testDriveBooking.findMany({
-        select: {
-          id: true,
-          status: true,
-          carId: true,
-        },
+        select: { id: true, status: true, carId: true },
       }),
     ]);
 
-    // Calculate car statistics
+    // Car stats
     const totalCars = cars.length;
-    const availableCars = cars.filter(
-      (car) => car.status === "AVAILABLE"
-    ).length;
-    const soldCars = cars.filter((car) => car.status === "SOLD").length;
-    const unavailableCars = cars.filter(
-      (car) => car.status === "UNAVAILABLE"
-    ).length;
-    const featuredCars = cars.filter((car) => car.featured === true).length;
+    const available = cars.filter((c) => c.status === "AVAILABLE").length;
+    const sold = cars.filter((c) => c.status === "SOLD").length;
+    const unavailable = cars.filter((c) => c.status === "UNAVAILABLE").length;
+    const featured = cars.filter((c) => c.featured).length;
 
-    // Calculate test drive statistics
-    const totalTestDrives = testDrives.length;
-    const pendingTestDrives = testDrives.filter(
-      (td) => td.status === "PENDING"
-    ).length;
-    const confirmedTestDrives = testDrives.filter(
-      (td) => td.status === "CONFIRMED"
-    ).length;
-    const completedTestDrives = testDrives.filter(
-      (td) => td.status === "COMPLETED"
-    ).length;
-    const cancelledTestDrives = testDrives.filter(
-      (td) => td.status === "CANCELLED"
-    ).length;
-    const noShowTestDrives = testDrives.filter(
-      (td) => td.status === "NO_SHOW"
-    ).length;
+    // Test drive stats
+    const totalTD = testDrives.length;
+    const pending = testDrives.filter((td) => td.status === "PENDING").length;
+    const confirmed = testDrives.filter((td) => td.status === "CONFIRMED").length;
+    const completed = testDrives.filter((td) => td.status === "COMPLETED").length;
+    const cancelled = testDrives.filter((td) => td.status === "CANCELLED").length;
+    const noShow = testDrives.filter((td) => td.status === "NO_SHOW").length;
 
-    // Calculate test drive conversion rate
-    const completedTestDriveCarIds = testDrives
-      .filter((td) => td.status === "COMPLETED")
-      .map((td) => td.carId);
+    const completedCarIds = testDrives.filter((td) => td.status === "COMPLETED").map((td) => td.carId);
+    const soldAfterTD = cars.filter((c) => c.status === "SOLD" && completedCarIds.includes(c.id)).length;
 
-    const soldCarsAfterTestDrive = cars.filter(
-      (car) =>
-        car.status === "SOLD" && completedTestDriveCarIds.includes(car.id)
-    ).length;
-
-    const conversionRate =
-      completedTestDrives > 0
-        ? (soldCarsAfterTestDrive / completedTestDrives) * 100
-        : 0;
+    const conversionRate = completed > 0 ? (soldAfterTD / completed) * 100 : 0;
 
     return {
       success: true,
       data: {
-        cars: {
-          total: totalCars,
-          available: availableCars,
-          sold: soldCars,
-          unavailable: unavailableCars,
-          featured: featuredCars,
-        },
+        cars: { total: totalCars, available, sold, unavailable, featured },
         testDrives: {
-          total: totalTestDrives,
-          pending: pendingTestDrives,
-          confirmed: confirmedTestDrives,
-          completed: completedTestDrives,
-          cancelled: cancelledTestDrives,
-          noShow: noShowTestDrives,
+          total: totalTD,
+          pending,
+          confirmed,
+          completed,
+          cancelled,
+          noShow,
           conversionRate: parseFloat(conversionRate.toFixed(2)),
         },
       },
+      error: null,
     };
   } catch (error) {
-    console.error("Error fetching dashboard data:", error.message);
-    return {
-      success: false,
-      error: error.message,
-    };
+    return { success: false, data: null, error: "Failed to fetch dashboard data" };
   }
 }
