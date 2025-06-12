@@ -7,35 +7,37 @@ const isProtectedRoute = createRouteMatcher([
   "/saved-cars(.*)",
   "/reservations(.*)",
 ]);
-
 const aj = arcjet({
-  key: process.env.ARCJET_KEY!,
+  key: process.env.ARCJET_KEY,
   rules: [
-    shield({ mode: "LIVE" }),
-    detectBot({
+    shield({
       mode: "LIVE",
+    }),
+    detectBot({
+      mode: "LIVE", 
       allow: [
-        "CATEGORY:SEARCH_ENGINE", // e.g., Google, Bing
+        "CATEGORY:SEARCH_ENGINE", // Google, Bing, etc
+        // See the full list at https://arcjet.com/bot-list
       ],
     }),
   ],
 });
 
 const clerk = clerkMiddleware(async (auth, req) => {
-  const { userId, redirectToSignIn } = await auth();
+  const { userId } = await auth();
 
   if (!userId && isProtectedRoute(req)) {
+    const { redirectToSignIn } = await auth();
     return redirectToSignIn();
   }
 
   return NextResponse.next();
 });
-
 export default createMiddleware(aj, clerk);
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and static files unless in search params
+    // Skip Next.js internals and all static files, unless found in search params
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     // Always run for API routes
     "/(api|trpc)(.*)",
